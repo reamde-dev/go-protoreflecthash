@@ -1942,6 +1942,43 @@ func TestHashProtoReflectMessage(t *testing.T) {
 
 }
 
+func TestSkipFields(t *testing.T) {
+	for name, tc := range map[string]struct {
+		value proto.Message
+		want  string
+	}{
+		"all_ok": {
+			value: &pb3_latest.Simple{
+				StringField: "bar",
+			},
+			want: "07c17fb86517d0751756424f3a6f474a5b7a9a5c70913bf15df8656a3a82027a",
+		},
+		"skipped": {
+			value: &pb3_latest.Simple{
+				StringField: "bar",
+				Int64Field:  123,
+			},
+			want: "07c17fb86517d0751756424f3a6f474a5b7a9a5c70913bf15df8656a3a82027a",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := hasher{
+				skipFields: map[string]struct{}{
+					"schema.proto3.Simple.int64_field": {},
+				},
+			}
+			got, err := h.hashMessage(tc.value.ProtoReflect())
+			if err != nil {
+				t.Errorf("hashMessage() error = %v", err)
+			}
+
+			if diff := cmp.Diff(tc.want, fmt.Sprintf("%x", got)); diff != "" {
+				t.Errorf("protohash (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func unmarshalJson(t *testing.T, md protoreflect.MessageDescriptor, json string) protoreflect.Message {
 	msg := dynamicpb.NewMessage(md)
 	if err := protojson.Unmarshal([]byte(json), msg); err != nil {

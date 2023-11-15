@@ -47,6 +47,18 @@ func FieldNamesAsKeys() Option {
 	}
 }
 
+// SkipFields is an option that skips hashing of specific fields.
+func SkipFields(fields ...string) Option {
+	return func(h *hasher) {
+		if h.skipFields == nil {
+			h.skipFields = make(map[string]struct{})
+		}
+		for _, field := range fields {
+			h.skipFields[field] = struct{}{}
+		}
+	}
+}
+
 type hasher struct {
 	// Whether to use the proto field name as its key, as opposed to using the
 	// tag number as the key.
@@ -54,6 +66,9 @@ type hasher struct {
 	// Whether to use the fullname of the message descriptor rather than 'm'
 	// (mapIdentifier) for proto messages.
 	messageFullnameIdentifier bool
+	// Whether to skip hashing of specific fields. The full name of the field
+	// is used as the key.
+	skipFields map[string]struct{}
 }
 
 type fieldHashEntry struct {
@@ -130,6 +145,9 @@ func (h *hasher) hashFields(msg protoreflect.Message, fields protoreflect.FieldD
 			// if we are in this block and the field is a scalar one, it is
 			// either a proto3 field that was never set or is the empty value
 			// (indistinguishable) or this is a proto2 field that is nil.
+			continue
+		}
+		if _, ok := h.skipFields[string(fd.FullName())]; ok {
 			continue
 		}
 		hash, err := h.hashField(fd, msg.Get(fd))
