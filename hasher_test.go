@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/dynamicpb"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -1979,6 +1980,62 @@ func TestSkipFields(t *testing.T) {
 	}
 }
 
+func TestHashAny(t *testing.T) {
+	for name, tc := range map[string]struct {
+		value protoreflect.ProtoMessage
+		want  string
+	}{
+		"simple": {
+			value: &pb3_latest.Simple{
+				StringField: "bar",
+			},
+			want: "07c17fb86517d0751756424f3a6f474a5b7a9a5c70913bf15df8656a3a82027a",
+		},
+		"simple_as_any": {
+			value: mustAnypbNew(anypb.New(
+				&pb3_latest.Simple{
+					StringField: "bar",
+				},
+			)),
+			want: "07c17fb86517d0751756424f3a6f474a5b7a9a5c70913bf15df8656a3a82027a",
+		},
+		"simple_nested_any": {
+			value: &pb3_latest.Simple{
+				AnyField: mustAnypbNew(anypb.New(
+					&pb3_latest.Simple{
+						StringField: "bar",
+					},
+				)),
+			},
+			want: "31bcd70b27be658ba84cbd216a7c4e47e030d3fe30f6fddc4e04bd6be9f6fe7c",
+		},
+		"simple_as_any_nested_any": {
+			value: mustAnypbNew(anypb.New(
+				&pb3_latest.Simple{
+					AnyField: mustAnypbNew(anypb.New(
+						&pb3_latest.Simple{
+							StringField: "bar",
+						},
+					)),
+				},
+			)),
+			want: "31bcd70b27be658ba84cbd216a7c4e47e030d3fe30f6fddc4e04bd6be9f6fe7c",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := hasher{}
+			got, err := h.hashMessage(tc.value.ProtoReflect())
+			if err != nil {
+				t.Errorf("hashMessage() error = %v", err)
+			}
+
+			if diff := cmp.Diff(tc.want, fmt.Sprintf("%x", got)); diff != "" {
+				t.Errorf("protohash (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func unmarshalJson(t *testing.T, md protoreflect.MessageDescriptor, json string) protoreflect.Message {
 	msg := dynamicpb.NewMessage(md)
 	if err := protojson.Unmarshal([]byte(json), msg); err != nil {
@@ -2164,4 +2221,11 @@ func (tc *hashTestCase) Check(name string, t *testing.T) {
 			}
 		})
 	}
+}
+
+func mustAnypbNew(t *anypb.Any, err error) *anypb.Any {
+	if err != nil {
+		panic(err.Error())
+	}
+	return t
 }

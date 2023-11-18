@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package schema.proto3;
 
+import "google/protobuf/any.proto";
+
 option go_package = "github.com/stackb/protoreflecthash/test_protos/generated/latest/proto3";
 
 message Empty {
@@ -37,6 +39,7 @@ message Simple {
   string string_field = 25;
   uint32 uint32_field = 27;
   uint64 uint64_field = 29;
+  google.protobuf.Any any_field = 30;
 
   Simple simple_field = 31;
   Repetitive repetitive_field = 33;

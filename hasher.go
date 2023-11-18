@@ -7,6 +7,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
 const valueName = protoreflect.Name("value")
@@ -367,10 +368,17 @@ func (h *hasher) hashWellKnownType(md protoreflect.MessageDescriptor, msg protor
 }
 
 func (h *hasher) hashGoogleProtobufAny(md protoreflect.MessageDescriptor, msg protoreflect.Message) ([]byte, error) {
-	// files := protoregistry.GlobalFiles - create option to set files explictly?
 	typeUrl := msg.Get(md.Fields().ByName("type_url")).String()
-	// TODO: lookup at a type server?
-	return nil, fmt.Errorf("protoreflecthash does not support hashing of Any type: " + typeUrl)
+	files := protoregistry.GlobalTypes
+	xmd, err := files.FindMessageByURL(typeUrl)
+	if err != nil {
+		return nil, fmt.Errorf("hashing google.protobuf.Any: %w", err)
+	}
+	xmsg := xmd.New()
+	if err := proto.Unmarshal(msg.Get(md.Fields().ByName("value")).Bytes(), xmsg.Interface()); err != nil {
+		return nil, fmt.Errorf("hashing google.protobuf.Any: %w", err)
+	}
+	return h.hashMessage(xmsg)
 }
 
 func (h *hasher) hashGoogleProtobufDuration(md protoreflect.MessageDescriptor, msg protoreflect.Message) ([]byte, error) {
